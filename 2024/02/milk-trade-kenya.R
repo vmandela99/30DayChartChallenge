@@ -5,7 +5,6 @@ library(ggtext)
 library(geomtextpath)
 library(camcorder)
 
-# base_path <- here("2022", "03")
 
 gg_record(dir = here::here("2024/02"), device = "png", width = 1080 * 2, height = 1350 * 2, units = "px", dpi = 320)
 
