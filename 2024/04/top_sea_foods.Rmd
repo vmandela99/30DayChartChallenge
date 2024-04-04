@@ -5,6 +5,8 @@ date: "04/04/2024"
 output: html_document
 ---
 
+-Credits to Christophe Nicault
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -31,37 +33,13 @@ showtext_auto(enable = TRUE)
 
 ```{r load_data}
 
-# production <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-10-12/seafood-and-fish-production-thousand-tonnes.csv')
-
-crop_prod_df <- read_csv("../data/fao_stat_data.csv")
+production <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-10-12/seafood-and-fish-production-thousand-tonnes.csv')
 
 ```
 
 Selection of the 4 countries with the largest production
 
 ```{r selection}
-
-crop_production <- crop_prod_df %>%
-  select(Area, Item, Year, Value) %>% 
-  pivot_wider(names_from = Item, values_from = Value) %>% 
-  filter(Year > 2020, Area == c("Colombia", "Kenya", "United States of America", "China")) %>% 
-  mutate(Code = case_when(Area == "Colombia" ~ "Co",
-                          Area == "Kenya" ~ "Ke",
-                          Area == "China" ~ "Cn", 
-                          Area == "United States of America" ~ "Us",
-                          TRUE ~ "Others")) %>% 
-  pivot_longer(cols = -c(Area, Code,Year )) %>% 
-  rename(Entity = Area) 
-
-crop_selection <- crop_production %>% 
-  group_by(Entity, Code) %>%
-  summarise(total = sum(value, na.rm = TRUE)) %>%
-  ungroup() %>%
-  slice_max(total, n = 4) %>%
-  select(Code, Entity)
-
-
-
 
 selection <- production %>%
   filter(Code != "OWID_WRL", !is.na(Code), Year == max(Year)) %>%
@@ -84,9 +62,6 @@ prod_long <- production %>%
   mutate(fish = str_split(name, " - ", simplify = TRUE)[,3],
          fish = str_remove(fish, ". Other"))
 
-# already done name is crop_production
-  
-
 ```
 
 
@@ -99,11 +74,6 @@ production_sum <- prod_long %>%
   summarise(total = sum(value, na.rm = TRUE)) %>%
   ungroup()
 
-crop_production_sum <- crop_production %>% 
-  group_by(Year, name) %>% 
-  summarise(total = sum(value, na.rm = TRUE)) %>%
-  ungroup()
-
 
 lines_label <- production_sum %>%
   filter(Year == max(Year)) %>%
@@ -111,40 +81,24 @@ lines_label <- production_sum %>%
   mutate(cum = cumsum(total),
          posy = lag(cum, default = 0) + total / 2) %>%
   bind_cols(posyend = seq(1e7, 12e7, 12e7 / 7))
-
-crop_lines_label <- crop_production_sum %>% 
-  filter(Year == max(Year)) %>%
-  arrange(total) %>%
-  mutate(cum = cumsum(total),
-         posy = lag(cum, default = 0) + total / 2) %>%
-  bind_cols(posyend = seq(1e7, 12e7, 12e7 / 7))
          
 
-year_list <- tibble(year = seq(1960, 2022, 10))
+year_list <- tibble(year = seq(1960, 2010, 10))
 
 fish_order <- production_sum %>%
   filter(Year == max(Year)) %>%
   arrange(desc(total)) %>%
   pull(fish)
 
-crop_order <- crop_production_sum %>% 
-  filter(Year == max(Year)) %>%
-  arrange(desc(total)) %>%
-  pull(name)
-  
-
 
 axis_p1 <- tibble(x = c(1958,1970,1980, 1990, 2000),
-                  xend = rep(2022,5),
+                  xend = rep(2013,5),
                   y = seq(5e7, 15e7, 2.5e7),
                   yend = seq(5e7, 15e7, 2.5e7))
 
 
 color_fish <- c()
-color_fish[fish_order] <- colorRampPalette(c("#037380", "#8BF7FC"))(7)
-
-color_crop <- c()
-color_crop[crop_order] <- colorRampPalette(c("purple", "#b40059"))(7)
+color_fish[fish_order] <- colorRampPalette(c("purple", "red"))(7)
 
 production_species_plt <- production_sum %>%
   mutate(fish = fct_relevel(fish, fish_order)) %>%
@@ -167,31 +121,6 @@ production_species_plt <- production_sum %>%
   guides(fill = "none", color = "none") +
   theme_void()+
   theme(plot.background = element_rect(fill = bck_color, color = NA))
-
-
-crop_production_species_plt <- crop_production_sum %>%
-  mutate(name = fct_relevel(name, crop_order)) %>%
-  ggplot() +
-  geom_segment(data = axis_p1, aes(x = x, xend = xend, y = y, yend = yend), color = "white", linetype = "13", size = 0.3, inherit.aes = FALSE) +
-  geom_text(data = axis_p1, aes(x = x, y = yend, label = comma(yend)), color = "white", hjust = 0, nudge_y = 2e6, size = 2.5, family = "roboto", inherit.aes = FALSE) +
-  geom_text(data = year_list, aes(x = year, y = -3.5e6, label = year), color = "white", size = 2.5, family = "roboto", inherit.aes = TRUE)+
-  geom_area(aes(Year, total, fill = name), color = "grey60") +
-  geom_segment(data = crop_lines_label, aes(x = 2022, xend = 2025, y = posy, yend = posyend, color = name))+
-  geom_segment(data = crop_lines_label, aes(x = 2030, xend = 2050, y = posyend, yend = posyend, color = name))+
-  geom_label(data = crop_lines_label, aes(x = 2025, y = posyend, label = name, color = name), fill = bck_color, size = 3, family = "khula", nudge_y = 3e6, label.size = 0, hjust = 0, fontface = "bold", inherit.aes = FALSE) +
-    geom_label(data = lines_label, aes(x = 2025, y = posyend, label = glue("{comma(total)} tonnes"), color = fish), fill = bck_color, size = 3, family = "khula", nudge_y = -2e6, label.size = 0, hjust = 0, fontface = "bold", inherit.aes = FALSE) +
-  annotate("text", x = 1960, y = 150e6, label = "Evolution by species", family = "khula", size = 5, color = "white", hjust = 0) +
-  annotate("text", x = 2040, y = 150e6, label = "Distribution among the 4 largest producers for year 2013", family = "khula", size = 5, color = "white", hjust = 0) +
-  annotate("text", x = 1960, y = 143e6, label = "(tonnes)", family = "roboto", size = 3, color = "white", hjust = 0) +
-  annotate("text", x = 2040, y = 143e6, label = "(tonnes)", family = "roboto", size = 3, color = "white", hjust = 0) +
-  scale_fill_manual(values = color_fish) +
-  scale_color_manual(values = color_fish) +
-  scale_x_continuous(limits = c(1958,2100)) +
-  guides(fill = "none", color = "none") +
-  theme_void()+
-  theme(plot.background = element_rect(fill = bck_color, color = NA))
-
-
 
 ```
 
@@ -216,7 +145,7 @@ prod_reorder <- production %>%
 
 
 
-prod_colors <- tibble(Color = c("grey60", colorRampPalette(c("#7EA629", "#027373"))(4)),
+prod_colors <- tibble(Color = c("yellow", colorRampPalette(c("purple", "red"))(4)),
                       Code = c("OTH",selection$Code),
                       Entity = c("Others",selection$Entity))
 
@@ -273,7 +202,7 @@ final <- production_species_plt + inset_element(production_cty_plt, 0.6,0.055,1,
   )
 )
 
-ragg::agg_png(here::here("2021/2021-42-global_seafood/", paste0("global_seafood_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".png")), res = 320, width = 14, height = 7, units = "in")
+ragg::agg_png(here::here("2024/04/", paste0("global_seafood_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".png")), res = 320, width = 14, height = 7, units = "in")
 
 final
 
